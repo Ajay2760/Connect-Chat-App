@@ -6,50 +6,34 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins
+    origin: "*",
   },
 });
 
-let users = []; // Track online users
-let messages = []; // Store messages
+let onlineUsers = [];
 
 io.on("connection", (socket) => {
   console.log("A user connected");
 
-  // Add user to the online list
-  socket.on("set-username", (username) => {
-    users.push(username);
-    io.emit("user-list", users); // Update all clients with the new user list
+  socket.on("user-joined", (username) => {
+    onlineUsers.push(username);
+    io.emit("user-list", onlineUsers);
   });
 
-  // Handle messages
-  socket.on("send-message", (msgData) => {
-    messages.push(msgData); // Store the message
-    io.emit("receive-message", msgData); // Broadcast the message to all clients
+  socket.on("send-message", (data) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const messageData = { ...data, timestamp };
+    io.emit("receive-message", messageData); // Send the message with timestamp
   });
 
-  // Handle typing event
-  socket.on("typing", (username) => {
-    socket.broadcast.emit("typing", username); // Broadcast typing status to all other clients
-  });
-
-  // Handle message deletion
-  socket.on("delete-message", (index) => {
-    messages = messages.filter((_, i) => i !== index);
-    io.emit("receive-message", messages); // Send updated messages to all clients
-  });
-
-  // Handle message editing
-  socket.on("edit-message", ({ index, newMessage }) => {
-    messages[index].message = newMessage; // Update message text
-    io.emit("receive-message", messages); // Send updated messages to all clients
+  socket.on("user-left", (username) => {
+    onlineUsers = onlineUsers.filter((user) => user !== username);
+    io.emit("user-list", onlineUsers);
+    io.emit("user-left", username);
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected");
-    // Remove user from the online list
-    users = users.filter((user) => user !== socket.id);
-    io.emit("user-list", users); // Update all clients with the new user list
   });
 });
 
